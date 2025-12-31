@@ -2,7 +2,9 @@
 
 **JakiScanner** es una herramienta de reconocimiento de red ligera y potente diseñada para entornos de pruebas de penetración. A diferencia de los escáneres convencionales, optimiza la velocidad mediante hilos concurrentes y proporciona inteligencia sobre el objetivo de forma inmediata.
 
-
+<p align="center">
+  <img src="banner.png" alt="JakiScanner Banner" width="800">
+</p>
 
 ## 🛠️ ¿Por qué usar JakiScanner?
 
