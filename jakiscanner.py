@@ -6,7 +6,8 @@ import sys
 import subprocess
 import re
 import json
-import socket  # <--- Agregado: ¡Fundamental para la red!
+import socket
+from concurrent.futures import ThreadPoolExecutor # Para manejo eficiente de hilos
 
 # Intentar importar tqdm
 try:
@@ -16,7 +17,6 @@ except ImportError:
     print("[*] Ejecuta: sudo pip3 install tqdm --break-system-packages\n")
     sys.exit(1)
 
-# --- Configuración de Colores ---
 class Colores:
     CYAN = '\033[96m'
     GREEN = '\033[92m'
@@ -25,7 +25,6 @@ class Colores:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
 
-# --- Diccionario de Servicios Ampliado ---
 SERVICIOS_COMUNES = {
     21: "FTP", 22: "SSH", 23: "Telnet", 25: "SMTP", 53: "DNS",
     80: "HTTP", 110: "POP3", 111: "RPCBind", 135: "MSRPC",
@@ -46,15 +45,12 @@ def print_banner():
   | |/ _ \| |/ /| |/ __|/ __|/ _\|  \| ||  \| ||  __| _ \
 __| |  _  |   < | |\__ \ (__| (_ | .  || .  ||  __|   / 
 \__/ \__| |_|\_\_|\____|\___|\__/|_|\_||_|\_||____|_|_/
-                                v2.0 - TCP Logic Scanner
+                                v2.1 - JakiNet Infrastructure
     """   
     print(f"{Colores.CYAN}{banner}{Colores.ENDC}")
-    print(f"{Colores.YELLOW}   Sincronizado con Infraestructura JakiNet{Colores.ENDC}\n")
 
 def detect_os(ip):
-    """Detecta el SO basado en el valor del TTL mediante un ping."""
     try:
-        # Usamos un solo ping para rapidez
         process = subprocess.Popen(['ping', '-c', '1', '-W', '1', ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, _ = process.communicate()
         ttl_match = re.search(r"ttl=(\d+)", out.decode())
@@ -62,33 +58,33 @@ def detect_os(ip):
             ttl = int(ttl_match.group(1))
             if ttl <= 64: return "Linux/Unix", ttl
             elif ttl <= 128: return "Windows", ttl
-            else: return "Cisco/Network Device", ttl
+            else: return "Cisco/Network", ttl
     except: pass
     return "Desconocido", "N/A"
 
 print_lock = threading.Semaphore(value=1)
 results = []
 
-def scan_port(target_ip, port, pbar):
-    """Escanea un puerto, captura banner e identifica servicio."""
+def scan_port(target_ip, puerto, pbar):
+    """Función de escaneo individual"""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(1.5)
-        result = sock.connect_ex((target_ip, port))
+        sock.settimeout(2.0) # Aumentado para mayor fiabilidad en Internet
+        result = sock.connect_ex((target_ip, puerto))
         
         if result == 0:
             banner = ""
             try:
-                # Intento de Banner Grabbing
+                # Intento de captura de banner (info del servicio)
                 banner = sock.recv(1024).decode('utf-8', errors='ignore').strip().replace('\n', ' ')
             except: pass
             
-            nombre_serv = SERVICIOS_COMUNES.get(port, "Desconocido")
+            nombre_serv = SERVICIOS_COMUNES.get(puerto, "Desconocido")
             
             with print_lock:
-                pbar.write(f"  [{Colores.GREEN}+{Colores.ENDC}] Puerto {Colores.BOLD}{port:<5}{Colores.ENDC} ({Colores.CYAN}{nombre_serv:<12}{Colores.ENDC}) -> {Colores.GREEN}ABIERTO{Colores.ENDC} {Colores.YELLOW + '[' + banner + ']' if banner else ''}{Colores.ENDC}")
+                pbar.write(f"  [{Colores.GREEN}+{Colores.ENDC}] Puerto {Colores.BOLD}{puerto:<5}{Colores.ENDC} ({Colores.CYAN}{nombre_serv:<12}{Colores.ENDC}) -> {Colores.GREEN}ABIERTO{Colores.ENDC}")
                 results.append({
-                    "puerto": port,
+                    "puerto": puerto,
                     "servicio": nombre_serv,
                     "banner": banner
                 })
@@ -109,7 +105,6 @@ def ejecutar_escaneo(target, puertos_str, output_file=None):
     print(f"[*] Objetivo: {Colores.CYAN}{target}{Colores.ENDC} ({target_ip})")
     print(f"[*] SO Probable: {Colores.YELLOW}{sistema}{Colores.ENDC} (TTL: {ttl})")
     
-    # Procesar rango de puertos
     if '-' in puertos_str:
         s, e = map(int, puertos_str.split('-'))
         ports = list(range(s, min(e + 1, 65536)))
@@ -118,23 +113,15 @@ def ejecutar_escaneo(target, puertos_str, output_file=None):
     else:
         ports = [int(puertos_str)]
 
-    print(f"[*] Escaneando {len(ports)} puertos...\n")
+    print(f"[*] Escaneando {len(ports)} puertos con ThreadPool...\n")
     start_time = time.time()
     
+    # Usamos ThreadPoolExecutor para no saturar el sistema
     with tqdm(total=len(ports), unit="port", desc=f"{Colores.BOLD}Progreso{Colores.ENDC}", bar_format="{l_bar}{bar:30}{r_bar}") as pbar:
-        threads = []
-        for p in ports:
-            t = threading.Thread(target=scan_port, args=(target_ip, p, pbar))
-            t.daemon = True # Evita que el programa se cuelgue al salir
-            t.start()
-            threads.append(t)
-            
-            # Limitar ráfagas para no saturar el stack de red
-            if len(threads) % 200 == 0:
-                time.sleep(0.05)
-        
-        for t in threads:
-            t.join()
+        # 200 hilos es ideal para no ser bloqueado por firewalls web rápidamente
+        with ThreadPoolExecutor(max_workers=200) as executor:
+            for p in ports:
+                executor.submit(scan_port, target_ip, p, pbar)
 
     duration = round(time.time() - start_time, 2)
     print(f"\n{Colores.CYAN}--- Escaneo completado en {duration}s ---{Colores.ENDC}")
@@ -166,7 +153,8 @@ def mostrar_menu():
     if op == '5': sys.exit()
     
     target = input(f"{Colores.YELLOW}IP/Dominio: {Colores.ENDC}")
-    save = input(f"{Colores.YELLOW}Guardar como (ej: scan.json / scan.txt / Enter para omitir): {Colores.ENDC}")
+    save_input = input(f"{Colores.YELLOW}¿Guardar reporte? (nombre.txt/json o Enter para omitir): {Colores.ENDC}")
+    save = save_input if save_input else None
     
     if op == '1': ejecutar_escaneo(target, "1-100", save)
     elif op == '2': ejecutar_escaneo(target, "1-1024", save)
@@ -195,5 +183,5 @@ def main():
 if __name__ == "__main__":
     try: main()
     except KeyboardInterrupt:
-        print(f"\n{Colores.RED}[!] Abortado.{Colores.ENDC}")
+        print(f"\n{Colores.RED}[!] Escaneo abortado por el usuario.{Colores.ENDC}")
         sys.exit(0)
