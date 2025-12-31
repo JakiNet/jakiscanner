@@ -7,10 +7,10 @@ RED='\033[0;31m'
 NC='\033[0m'
 BOLD='\033[1m'
 
-# 1. VALIDACIÓN DE PERMISOS (NUEVO)
+# 1. Forzar que se corra con sudo
 if [ "$EUID" -ne 0 ]; then 
-  echo -e "${RED}${BOLD}[!] ERROR: Se requieren privilegios de administrador.${NC}"
-  echo -e "${CYAN}Por favor, ejecuta el instalador usando: ${WHITE}sudo ./install.sh${NC}"
+  echo -e "${RED}${BOLD}[!] Error: Ejecuta con sudo.${NC}"
+  echo -e "Uso: sudo ./install.sh"
   exit 1
 fi
 
@@ -30,24 +30,33 @@ spinner() {
 
 clear
 echo -e "${CYAN}${BOLD}=========================================="
-echo -e "      INSTALANDO JAKISCANNER GLOBAL       "
+echo -e "      INSTALADOR UNIVERSAL JAKISCANNER    "
 echo -e "==========================================${NC}\n"
 
-# 2. Instalación de Dependencias
-echo -n -e "➜ Instalando librerías necesarias... "
-(pip3 install tqdm --break-system-packages --user > /dev/null 2>&1) &
+# 2. Instalar dependencias silenciando errores de sistema (PEP 668)
+echo -n -e "➜ Instalando dependencias de Python...  "
+(apt-get update -y > /dev/null 2>&1 && \
+ apt-get install -y python3-tqdm > /dev/null 2>&1 || \
+ pip3 install tqdm --break-system-packages --user > /dev/null 2>&1) &
 spinner $!
 echo -e "${GREEN}[OK]${NC}"
 
-# 3. Permisos y Registro
-echo -n -e "➜ Registrando comando en el sistema... "
+# 3. Registro Global (Independiente del usuario)
+echo -n -e "➜ Registrando comando en el sistema...  "
 chmod +x jakiscanner
-# Ya no necesitamos poner sudo aquí adentro porque el script entero corre como root
+# Copiamos a /usr/local/bin para que sea accesible por TODOS los usuarios
 if cp jakiscanner /usr/local/bin/jakiscanner > /dev/null 2>&1; then
     echo -e "${GREEN}[OK]${NC}"
 else
-    echo -e "${RED}[ERROR]${NC}"
+    echo -e "${RED}[FALLÓ]${NC}"
     exit 1
 fi
 
-echo -e "\n${BOLD}${GREEN}¡Listo! Ahora puedes usar '${CYAN}jakiscanner${GREEN}' en cualquier terminal.${NC}"
+# 4. Limpieza de entorno
+echo -n -e "➜ Optimizando configuración...          "
+# Esto evita que el usuario vea errores de Git en el futuro si clona tu repo
+git config --global --add safe.directory $(pwd) > /dev/null 2>&1
+echo -e "${GREEN}[OK]${NC}"
+
+echo -e "\n${BOLD}${GREEN}¡Instalación exitosa!${NC}"
+echo -e "Escribe ${CYAN}jakiscanner${NC} en cualquier terminal para empezar."
