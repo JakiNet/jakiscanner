@@ -32,7 +32,12 @@ cd JakiScanner
 chmod +x install.sh
 sudo ./install.sh
 ```
+---
 
+```bash
+Nota: si lo anterior falla por alguna razon:
+1.- Prueba instalar directamente el archivo jakiscann.py y dale permisos
+2.- Ejecuta el install2.sh
 ## 🚀 Uso Rápido
 
 Simplemente escribe jakiscanner para entrar en el modo interactivo, o usa los argumentos:
