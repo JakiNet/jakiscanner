@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-import socket
 import argparse
 import threading
 import time
@@ -8,13 +6,14 @@ import sys
 import subprocess
 import re
 import json
+import socket  # <--- Agregado: ¡Fundamental para la red!
 
-# Intentar importar tqdm, si no está, el script avisará
+# Intentar importar tqdm
 try:
     from tqdm import tqdm
 except ImportError:
     print("\n[!] Error: La librería 'tqdm' no está instalada.")
-    print("[*] Ejecuta: pip install tqdm\n")
+    print("[*] Ejecuta: sudo pip3 install tqdm --break-system-packages\n")
     sys.exit(1)
 
 # --- Configuración de Colores ---
@@ -26,30 +25,36 @@ class Colores:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
 
-# --- Diccionario de Servicios Estándar ---
+# --- Diccionario de Servicios Ampliado ---
 SERVICIOS_COMUNES = {
     21: "FTP", 22: "SSH", 23: "Telnet", 25: "SMTP", 53: "DNS",
     80: "HTTP", 110: "POP3", 111: "RPCBind", 135: "MSRPC",
     139: "NetBIOS", 143: "IMAP", 443: "HTTPS", 445: "SMB/MS-DS",
-    993: "IMAPS", 995: "POP3S", 1723: "PPTP", 3306: "MySQL",
-    3389: "RDP", 5432: "PostgreSQL", 5900: "VNC", 8080: "HTTP-Proxy",
-    4444: "Metasploit", 60000: "Deep-Backdoor"
+    993: "IMAPS", 995: "POP3S", 1723: "PPTP", 2049: "NFS",
+    3000: "NodeJS/React", 3003: "Dev-Micro", 3005: "Dev-Micro", 3006: "Dev-Micro",
+    3306: "MySQL", 3389: "RDP", 5000: "Flask/Docker", 
+    5331: "Backup-Svc", 5432: "PostgreSQL", 5900: "VNC", 
+    6379: "Redis", 8000: "HTTP-Alt", 8080: "HTTP-Proxy",
+    8081: "HTTP-Alt", 8082: "HTTP-Alt/Proxy", 8443: "HTTPS-Alt", 
+    9000: "Portainer", 27017: "MongoDB", 4444: "Metasploit", 
+    60000: "Deep-Backdoor"
 }
 
 def print_banner():
-    # La 'r' al principio es la solución al SyntaxWarning
     banner = r"""
      _ ___  _  __ _  ___  ___  __  __ _  __ _  ____ ___ 
   | |/ _ \| |/ /| |/ __|/ __|/ _\|  \| ||  \| ||  __| _ \
 __| |  _  |   < | |\__ \ (__| (_ | .  || .  ||  __|   / 
 \__/ \__| |_|\_\_|\____|\___|\__/|_|\_||_|\_||____|_|_/
-                                  v1.0 - TCP Logic Scanner
+                                v2.0 - TCP Logic Scanner
     """   
     print(f"{Colores.CYAN}{banner}{Colores.ENDC}")
+    print(f"{Colores.YELLOW}   Sincronizado con Infraestructura JakiNet{Colores.ENDC}\n")
 
 def detect_os(ip):
-    """Detecta el SO basado en el valor del TTL."""
+    """Detecta el SO basado en el valor del TTL mediante un ping."""
     try:
+        # Usamos un solo ping para rapidez
         process = subprocess.Popen(['ping', '-c', '1', '-W', '1', ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, _ = process.communicate()
         ttl_match = re.search(r"ttl=(\d+)", out.decode())
@@ -65,7 +70,7 @@ print_lock = threading.Semaphore(value=1)
 results = []
 
 def scan_port(target_ip, port, pbar):
-    """Escanea un puerto y captura el banner si es posible."""
+    """Escanea un puerto, captura banner e identifica servicio."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(1.5)
@@ -74,23 +79,21 @@ def scan_port(target_ip, port, pbar):
         if result == 0:
             banner = ""
             try:
+                # Intento de Banner Grabbing
                 banner = sock.recv(1024).decode('utf-8', errors='ignore').strip().replace('\n', ' ')
-            except:
-                pass
+            except: pass
             
             nombre_serv = SERVICIOS_COMUNES.get(port, "Desconocido")
             
             with print_lock:
-                # pbar.write permite imprimir sin romper la barra de progreso
-                pbar.write(f"  [{Colores.GREEN}+{Colores.ENDC}] Puerto {Colores.BOLD}{port:<5}{Colores.ENDC} ({Colores.CYAN}{nombre_serv:<12}{Colores.ENDC}) -> {Colores.GREEN}ABIERTO{Colores.ENDC} {Colores.YELLOW if banner else ''}{'[' + banner + ']' if banner else ''}{Colores.ENDC}")
+                pbar.write(f"  [{Colores.GREEN}+{Colores.ENDC}] Puerto {Colores.BOLD}{port:<5}{Colores.ENDC} ({Colores.CYAN}{nombre_serv:<12}{Colores.ENDC}) -> {Colores.GREEN}ABIERTO{Colores.ENDC} {Colores.YELLOW + '[' + banner + ']' if banner else ''}{Colores.ENDC}")
                 results.append({
                     "puerto": port,
                     "servicio": nombre_serv,
                     "banner": banner
                 })
         sock.close()
-    except:
-        pass
+    except: pass
     finally:
         pbar.update(1)
 
@@ -99,95 +102,89 @@ def ejecutar_escaneo(target, puertos_str, output_file=None):
     try:
         target_ip = socket.gethostbyname(target)
     except:
-        print(f"{Colores.RED}[!] Error: No se pudo resolver el host {target}{Colores.ENDC}")
+        print(f"{Colores.RED}[!] Error: No se pudo resolver {target}{Colores.ENDC}")
         return
 
     sistema, ttl = detect_os(target_ip)
-    print(f"\n[*] Objetivo: {Colores.CYAN}{target}{Colores.ENDC} ({target_ip})")
+    print(f"[*] Objetivo: {Colores.CYAN}{target}{Colores.ENDC} ({target_ip})")
     print(f"[*] SO Probable: {Colores.YELLOW}{sistema}{Colores.ENDC} (TTL: {ttl})")
     
-    # Manejo de rangos y listas de puertos
+    # Procesar rango de puertos
     if '-' in puertos_str:
         s, e = map(int, puertos_str.split('-'))
-        ports = list(range(s, e + 1))
+        ports = list(range(s, min(e + 1, 65536)))
     elif ',' in puertos_str:
         ports = list(map(int, puertos_str.split(',')))
     else:
         ports = [int(puertos_str)]
 
-    print(f"[*] Escaneando {len(ports)} puertos con hilos concurrentes...\n")
-    
+    print(f"[*] Escaneando {len(ports)} puertos...\n")
     start_time = time.time()
     
-    # Barra de progreso tqdm
-    with tqdm(total=len(ports), unit="port", desc=f"{Colores.BOLD}Progreso{Colores.ENDC}", leave=True, bar_format="{l_bar}{bar:30}{r_bar}") as pbar:
+    with tqdm(total=len(ports), unit="port", desc=f"{Colores.BOLD}Progreso{Colores.ENDC}", bar_format="{l_bar}{bar:30}{r_bar}") as pbar:
         threads = []
         for p in ports:
             t = threading.Thread(target=scan_port, args=(target_ip, p, pbar))
+            t.daemon = True # Evita que el programa se cuelgue al salir
             t.start()
             threads.append(t)
-            # Control de saturación de hilos
-            if len(threads) % 150 == 0:
-                time.sleep(0.01)
+            
+            # Limitar ráfagas para no saturar el stack de red
+            if len(threads) % 200 == 0:
+                time.sleep(0.05)
         
         for t in threads:
             t.join()
 
     duration = round(time.time() - start_time, 2)
     print(f"\n{Colores.CYAN}--- Escaneo completado en {duration}s ---{Colores.ENDC}")
-    print(f"[*] Puertos abiertos encontrados: {Colores.BOLD}{len(results)}{Colores.ENDC}")
-
-    # Guardado de archivos
+    
     if output_file:
-        if output_file.endswith('.json'):
-            data = {"target": target, "ip": target_ip, "os": sistema, "scan_date": str(datetime.now()), "open_ports": results}
-            with open(output_file, 'w') as f:
-                json.dump(data, f, indent=4)
-        else:
-            with open(output_file, 'w') as f:
-                f.write(f"Reporte JakiScanner v2.0\nFecha: {datetime.now()}\nObjetivo: {target} ({target_ip})\nSO Probable: {sistema}\n" + "="*50 + "\n")
-                for r in results:
-                    f.write(f"Puerto: {r['puerto']:<6} | Servicio: {r['servicio']:<15} | Banner: {r['banner']}\n")
-        
-        print(f"{Colores.GREEN}[+] Resultados guardados en: {Colores.BOLD}{output_file}{Colores.ENDC}")
+        guardar_reporte(target, target_ip, sistema, output_file)
+
+def guardar_reporte(target, ip, os, file):
+    if file.endswith('.json'):
+        data = {"target": target, "ip": ip, "os": os, "date": str(datetime.now()), "open_ports": results}
+        with open(file, 'w') as f: json.dump(data, f, indent=4)
+    else:
+        with open(file, 'w') as f:
+            f.write(f"JakiScanner Report | {datetime.now()}\nTarget: {target} ({ip})\nOS: {os}\n" + "="*40 + "\n")
+            for r in results:
+                f.write(f"Port: {r['puerto']:<6} | Svc: {r['servicio']:<15} | Banner: {r['banner']}\n")
+    print(f"{Colores.GREEN}[+] Reporte generado: {Colores.BOLD}{file}{Colores.ENDC}")
 
 def mostrar_menu():
     print_banner()
-    print(f"{Colores.BOLD}MENÚ INTERACTIVO:{Colores.ENDC}")
-    print("1. Escaneo Rápido (1-100)")
-    print("2. Escaneo Estándar (1-1024)")
-    print("3. Escaneo Completo (1-65535)")
-    print("4. Escaneo Personalizado")
+    print(f"{Colores.BOLD}MODOS DE ESCANEO:{Colores.ENDC}")
+    print("1. Rápido (1-100)")
+    print("2. Estándar (1-1024)")
+    print("3. Full (1-65535)")
+    print("4. Personalizado")
     print("5. Salir")
     
-    opcion = input(f"\n{Colores.YELLOW}Selecciona una opción: {Colores.ENDC}")
+    op = input(f"\n{Colores.YELLOW}Selecciona: {Colores.ENDC}")
+    if op == '5': sys.exit()
     
-    if opcion == '5':
-        print(f"{Colores.CYAN}¡Gracias por usar JakiScanner! Saliendo...{Colores.ENDC}")
-        sys.exit()
+    target = input(f"{Colores.YELLOW}IP/Dominio: {Colores.ENDC}")
+    save = input(f"{Colores.YELLOW}Guardar como (ej: scan.json / scan.txt / Enter para omitir): {Colores.ENDC}")
     
-    target = input(f"{Colores.YELLOW}Introduce IP o Dominio: {Colores.ENDC}")
-    save = input(f"{Colores.YELLOW}¿Guardar reporte? (ej: resultado.txt / resultado.json / No): {Colores.ENDC}")
-    out = save if save.lower() != 'no' else None
-
-    if opcion == '1': ejecutar_escaneo(target, "1-100", out)
-    elif opcion == '2': ejecutar_escaneo(target, "1-1024", out)
-    elif opcion == '3': ejecutar_escaneo(target, "1-65535", out)
-    elif opcion == '4':
-        p = input(f"{Colores.YELLOW}Rango de puertos (ej: 22,80,443 o 1-5000): {Colores.ENDC}")
-        ejecutar_escaneo(target, p, out)
+    if op == '1': ejecutar_escaneo(target, "1-100", save)
+    elif op == '2': ejecutar_escaneo(target, "1-1024", save)
+    elif op == '3': ejecutar_escaneo(target, "1-65535", save)
+    elif op == '4':
+        p = input(f"{Colores.YELLOW}Puertos (ej: 80,443 o 1-5000): {Colores.ENDC}")
+        ejecutar_escaneo(target, p, save)
     
-    input(f"\n{Colores.CYAN}Presiona ENTER para volver al menú...{Colores.ENDC}")
+    input(f"\n{Colores.CYAN}Presiona ENTER para volver...{Colores.ENDC}")
     subprocess.run(['clear'])
     mostrar_menu()
 
 def main():
-    # Si hay argumentos, usar CLI. Si no, usar Menú.
     if len(sys.argv) > 1:
-        parser = argparse.ArgumentParser(description="JakiScanner v2.0 - Escáner de Puertos Profesional")
-        parser.add_argument("-t", "--target", help="IP o dominio del objetivo", required=True)
-        parser.add_argument("-p", "--ports", help="Rango de puertos (ej: 1-1000 o 80,443)", default="1-1024")
-        parser.add_argument("-o", "--output", help="Archivo de salida (.txt o .json)")
+        parser = argparse.ArgumentParser()
+        parser.add_argument("-t", "--target", required=True)
+        parser.add_argument("-p", "--ports", default="1-1024")
+        parser.add_argument("-o", "--output")
         args = parser.parse_args()
         print_banner()
         ejecutar_escaneo(args.target, args.ports, args.output)
@@ -196,8 +193,7 @@ def main():
         mostrar_menu()
 
 if __name__ == "__main__":
-    try:
-        main()
+    try: main()
     except KeyboardInterrupt:
-        print(f"\n{Colores.RED}[!] Escaneo interrumpido por el usuario.{Colores.ENDC}")
+        print(f"\n{Colores.RED}[!] Abortado.{Colores.ENDC}")
         sys.exit(0)
