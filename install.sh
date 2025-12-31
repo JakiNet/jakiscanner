@@ -7,56 +7,46 @@ RED='\033[0;31m'
 NC='\033[0m'
 BOLD='\033[1m'
 
-# 1. Forzar que se corra con sudo
+# 1. Forzar Root
 if [ "$EUID" -ne 0 ]; then 
-  echo -e "${RED}${BOLD}[!] Error: Ejecuta con sudo.${NC}"
-  echo -e "Uso: sudo ./install.sh"
+  echo -e "${RED}${BOLD}[!] Error: Se requiere sudo para instalar globalmente.${NC}"
   exit 1
 fi
 
-spinner() {
-    local pid=$1
-    local delay=0.1
-    local spinstr='|/-\'
-    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
-        local temp=${spinstr#?}
-        printf " [%c]  " "$spinstr"
-        local spinstr=$temp${spinstr%"$temp"}
-        sleep $delay
-        printf "\b\b\b\b\b\b"
-    done
-    printf "    \b\b\b\b"
-}
-
 clear
-echo -e "${CYAN}${BOLD}=========================================="
-echo -e "      INSTALADOR UNIVERSAL JAKISCANNER    "
+echo -e "${CYAN}=========================================="
+echo -e "    INSTALACIÓN AUTOMÁTICA: JAKISCANNER   "
 echo -e "==========================================${NC}\n"
 
-# 2. Instalar dependencias silenciando errores de sistema (PEP 668)
-echo -n -e "➜ Instalando dependencias de Python...  "
-(apt-get update -y > /dev/null 2>&1 && \
- apt-get install -y python3-tqdm > /dev/null 2>&1 || \
- pip3 install tqdm --break-system-packages --user > /dev/null 2>&1) &
-spinner $!
-echo -e "${GREEN}[OK]${NC}"
-
-# 3. Registro Global (Independiente del usuario)
-echo -n -e "➜ Registrando comando en el sistema...  "
-chmod +x jakiscanner
-# Copiamos a /usr/local/bin para que sea accesible por TODOS los usuarios
-if cp jakiscanner /usr/local/bin/jakiscanner > /dev/null 2>&1; then
-    echo -e "${GREEN}[OK]${NC}"
+# 2. Identificar el archivo fuente (por si tiene .py o no)
+if [ -f "jakiscanner.py" ]; then
+    SOURCE="jakiscanner.py"
+elif [ -f "jakiscanner" ]; then
+    SOURCE="jakiscanner"
 else
-    echo -e "${RED}[FALLÓ]${NC}"
+    echo -e "${RED}[!] Error: No se encontró el archivo del script en esta carpeta.${NC}"
     exit 1
 fi
 
-# 4. Limpieza de entorno
-echo -n -e "➜ Optimizando configuración...          "
-# Esto evita que el usuario vea errores de Git en el futuro si clona tu repo
-git config --global --add safe.directory $(pwd) > /dev/null 2>&1
-echo -e "${GREEN}[OK]${NC}"
+# 3. Instalación de Dependencias
+echo -e "➜ Instalando dependencias de Python..."
+apt-get update -y > /dev/null 2>&1
+apt-get install -y python3-tqdm > /dev/null 2>&1
+pip3 install tqdm --break-system-packages --user > /dev/null 2>&1
 
-echo -e "\n${BOLD}${GREEN}¡Instalación exitosa!${NC}"
-echo -e "Escribe ${CYAN}jakiscanner${NC} en cualquier terminal para empezar."
+# 4. Registro del comando
+echo -e "➜ Registrando comando en /usr/local/bin..."
+# Copiamos el archivo quitándole la extensión .py si la tuviera
+cp "$SOURCE" /usr/local/bin/jakiscanner
+chmod +x /usr/local/bin/jakiscanner
+
+# 5. TRUCO DE COMPATIBILIDAD (Para que funcione al instante)
+# Creamos un enlace simbólico por si el PATH tiene prioridades
+ln -sf /usr/local/bin/jakiscanner /usr/bin/jakiscanner
+
+echo -e "\n${GREEN}${BOLD}¡CONFIGURACIÓN COMPLETADA!${NC}"
+echo -e "${CYAN}------------------------------------------${NC}"
+echo -e "Para empezar a usarlo ahora mismo:"
+echo -e "1. Escribe: ${BOLD}rehash${NC} (si usas ZSH/Kali)"
+echo -e "2. O simplemente escribe: ${BOLD}jakiscanner${NC}"
+echo -e "${CYAN}------------------------------------------${NC}"
