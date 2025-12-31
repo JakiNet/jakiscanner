@@ -25,7 +25,7 @@
 Clona el repositorio y ejecuta el instalador automático:
 
 ```bash
-git clone [https://github.com/TuUsuario/JakiScanner.git](https://github.com/TuUsuario/JakiScanner.git)
+git clone https://github.com/JakiNet/JakiScanner.git
 cd JakiScanner
 chmod +x install.sh
 ./install.sh
