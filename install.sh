@@ -1,19 +1,23 @@
 #!/bin/bash
 
-# --- Configuración de Colores ---
+# --- Colores ---
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # Sin color
+NC='\033[0m'
 BOLD='\033[1m'
 
-# --- Función para mostrar un "Spinner" (indicador de carga) ---
+# 1. VALIDACIÓN DE PERMISOS (NUEVO)
+if [ "$EUID" -ne 0 ]; then 
+  echo -e "${RED}${BOLD}[!] ERROR: Se requieren privilegios de administrador.${NC}"
+  echo -e "${CYAN}Por favor, ejecuta el instalador usando: ${WHITE}sudo ./install.sh${NC}"
+  exit 1
+fi
+
 spinner() {
     local pid=$1
     local delay=0.1
     local spinstr='|/-\'
-    echo -n " "
     while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
         local temp=${spinstr#?}
         printf " [%c]  " "$spinstr"
@@ -24,37 +28,26 @@ spinner() {
     printf "    \b\b\b\b"
 }
 
-# --- Limpiar pantalla al iniciar ---
 clear
 echo -e "${CYAN}${BOLD}=========================================="
-echo -e "      INSTALADOR DE DEPENDENCIAS          "
+echo -e "      INSTALANDO JAKISCANNER GLOBAL       "
 echo -e "==========================================${NC}\n"
 
-# 1. Actualización de Repositorios
-echo -n -e "${YELLOW}➜${NC} Actualizando repositorios... "
-(sudo apt-get update -y > /dev/null 2>&1) & 
-spinner $!
-echo -e "${GREEN}[OK]${NC}"
-
-# 2. Instalación de Python y Pip
-echo -n -e "${YELLOW}➜${NC} Verificando Python y Pip...  "
-(sudo apt-get install -y python3 python3-pip python3-venv > /dev/null 2>&1) &
-spinner $!
-echo -e "${GREEN}[OK]${NC}"
-
-# 3. Instalación de tqdm
-echo -n -e "${YELLOW}➜${NC} Instalando librería tqdm...  "
-# Intentamos la instalación silenciosa
+# 2. Instalación de Dependencias
+echo -n -e "➜ Instalando librerías necesarias... "
 (pip3 install tqdm --break-system-packages --user > /dev/null 2>&1) &
 spinner $!
+echo -e "${GREEN}[OK]${NC}"
 
-# Verificación final
-if python3 -c "import tqdm" > /dev/null 2>&1; then
-    echo -e "${GREEN}[INSTALADO]${NC}"
-    echo -e "\n${BOLD}${GREEN}¡Todo listo! El sistema está configurado.${NC}"
+# 3. Permisos y Registro
+echo -n -e "➜ Registrando comando en el sistema... "
+chmod +x jakiscanner
+# Ya no necesitamos poner sudo aquí adentro porque el script entero corre como root
+if cp jakiscanner /usr/local/bin/jakiscanner > /dev/null 2>&1; then
+    echo -e "${GREEN}[OK]${NC}"
 else
     echo -e "${RED}[ERROR]${NC}"
-    echo -e "\n${RED}Algo salió mal. Intenta ejecutar: sudo apt install python3-tqdm${NC}"
+    exit 1
 fi
 
-echo -e "${CYAN}==========================================${NC}"
+echo -e "\n${BOLD}${GREEN}¡Listo! Ahora puedes usar '${CYAN}jakiscanner${GREEN}' en cualquier terminal.${NC}"
