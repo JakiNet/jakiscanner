@@ -1,29 +1,99 @@
 #!/bin/bash
 
-# --- Colores ---
-CYAN='\033[0;36m'
-GREEN='\033[0;32m'
-NC='\033[0m'
+# --- CONFIGURACIÓN DE LA HERRAMIENTA ---
+TOOL_NAME="jakiscanner"
+PY_FILE="jakiscanner.py"
 
-# 1. Validar Root
+# --- COLORES ---
+CYAN='\033[0;36m'
+PURPLE='\033[0;35m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+WHITE='\033[1;37m'
+NC='\033[0m'
+BOLD='\033[1m'
+
+# --- FUNCIONES VISUALES ---
+
+# 1. El Spinner (Para procesos de fondo)
+spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='|/-\'
+    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+        local temp=${spinstr#?}
+        printf "  ${PURPLE}[%c]${NC}  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
+# 2. Barra de Progreso (Para simular carga de sistema)
+progress_bar() {
+    local duration=$1
+    local width=30
+    echo -ne "  "
+    for ((i=0; i<=width; i++)); do
+        let fill=i*100/width
+        printf "\r  ${CYAN}▕"
+        for ((j=0; j<i; j++)); do printf "█"; done
+        for ((j=i; j<width; j++)); do printf " "; done
+        printf "▏${NC} $fill%%"
+        sleep 0.04
+    done
+    echo -e ""
+}
+
+# --- INICIO DEL SCRIPT ---
+
 if [ "$EUID" -ne 0 ]; then 
-  echo -e "\033[0;31m[!] Ejecuta con sudo: sudo ./install.sh\033[0m"
+  echo -e "${RED}${BOLD}[!] Error: Ejecuta con sudo.${NC}"
   exit 1
 fi
 
-# 2. Crear carpeta en /opt (Como en JakiSnippets)
-mkdir -p /opt/jakiscanner
+clear
+echo -e "${PURPLE}${BOLD}"
+echo "      ██╗ █████╗ ██╗  ██╗██╗███╗   ██╗███████╗████████╗"
+echo "      ██║██╔══██╗██║ ██╔╝██║████╗  ██║██╔════╝╚══██╔══╝"
+echo "      ██║███████║█████╔╝ ██║██╔██╗ ██║█████╗     ██║   "
+echo "      ██║██╔══██╗██╔═██╗ ██║██║╚██╗██║██╔══╝     ██║   "
+echo "      ██║██║  ██║██║  ██╗██║██║ ╚████║███████╗   ██║   "
+echo "      ╚═╝╚═╝  ██║╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   "
+echo -e "              ${WHITE}INFRASTRUCTURE SETUP${NC}\n"
 
-# 3. Copiar el archivo manteniendo su extensión en /opt
-cp -f jakiscanner.py /opt/jakiscanner/jakiscanner.py
-chmod +x /opt/jakiscanner/jakiscanner.py
+# PASO 1: Dependencias
+echo -ne "${CYAN}[*]${NC} Descargando paquetes de sistema...   "
+(apt-get update -y && apt-get install -y python3-tqdm) > /dev/null 2>&1 &
+spinner $!
+echo -e "${GREEN}HECHO${NC}"
 
-# 4. CREAR EL COMANDO LIMPIO (Sin .py)
-# Esto vincula 'jakiscanner' con el archivo real
-ln -sf /opt/jakiscanner/jakiscanner.py /usr/local/bin/jakiscanner
+# PASO 2: Sincronización
+echo -e "${CYAN}[*]${NC} Sincronizando archivos en /opt/$TOOL_NAME..."
+progress_bar
+mkdir -p /opt/$TOOL_NAME
+cp -f "$PY_FILE" "/opt/$TOOL_NAME/$PY_FILE"
+chmod +x "/opt/$TOOL_NAME/$PY_FILE"
 
-# 5. Dependencias
-apt-get update -y > /dev/null 2>&1
-apt-get install -y python3-tqdm > /dev/null 2>&1
+# PASO 3: Binario
+echo -ne "${CYAN}[*]${NC} Creando enlace simbólico...          "
+ln -sf "/opt/$TOOL_NAME/$PY_FILE" "/usr/local/bin/$TOOL_NAME"
+sleep 0.5
+echo -e "${GREEN}HECHO${NC}"
 
-echo -e "${GREEN}✔ Instalación completa. Escribe 'jakiscanner' para empezar.${NC}"
+# PASO 4: Permisos Finales
+echo -ne "${CYAN}[*]${NC} Aplicando políticas de ejecución...  "
+if id "jaki" &>/dev/null; then
+    chown -R jaki:jaki "/opt/$TOOL_NAME"
+fi
+chmod 755 "/opt/$TOOL_NAME/$PY_FILE"
+sleep 0.5
+echo -e "${GREEN}HECHO${NC}"
+
+# --- MENSAJE FINAL ---
+echo -e "\n${GREEN}${BOLD}¡CONFIGURACIÓN FINALIZADA!${NC}"
+echo -e "${CYAN}--------------------------------------------------${NC}"
+echo -e " ${WHITE}Comando:${NC} ${BOLD}$TOOL_NAME${NC}"
+echo -e " ${WHITE}Ruta:${NC}    /opt/$TOOL_NAME/"
+echo -e "${CYAN}--------------------------------------------------${NC}"

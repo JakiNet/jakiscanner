@@ -30,18 +30,8 @@ cd JakiScanner
 chmod +x install.sh
 sudo ./install.sh
 ```
-# 1. Ve a tu carpeta personal (donde siempre tienes permisos)
-cd ~
 
-# 2. Descarga la herramienta
-git clone https://github.com/JakiNet/JakiScanner.git
-
-# 3. Entra e instala
-cd JakiScanner
-chmod +x install.sh
-sudo ./install.sh
-
-🚀 Uso Rápido
+## 🚀 Uso Rápido
 
 Simplemente escribe jakiscanner para entrar en el modo interactivo, o usa los argumentos:
 bash
