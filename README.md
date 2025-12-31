@@ -28,7 +28,7 @@ Clona el repositorio y ejecuta el instalador automático:
 git clone https://github.com/JakiNet/JakiScanner.git
 cd JakiScanner
 chmod +x install.sh
-./install.sh
+sudo ./install.sh
 ```
 🚀 Uso Rápido
 
