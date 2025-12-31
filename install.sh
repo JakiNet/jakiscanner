@@ -1,51 +1,53 @@
 #!/bin/bash
 
-# --- Colores ---
+# --- Configuración de Estética ---
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 BOLD='\033[1m'
 
+# 1. Comprobación de privilegios para la instalación
 if [ "$EUID" -ne 0 ]; then 
-  echo -e "${RED}${BOLD}[!] Error: Ejecuta con sudo para la instalación.${NC}"
+  echo -e "${RED}${BOLD}[!] Error: Para instalar, usa: sudo ./install.sh${NC}"
   exit 1
 fi
 
-REAL_USER=$SUDO_USER
-USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-
 clear
-echo -e "${CYAN}=========================================="
-echo -e "    INSTALADOR PROFESIONAL: JAKISCANNER   "
-echo -e "==========================================${NC}\n"
+echo -e "${CYAN}${BOLD}=========================================="
+echo -e "         INSTALADOR DE JAKISCANNER        "
+echo -e "==========================================${NC}"
 
-# 1. Copiar archivo
-SOURCE=$(ls jakiscanner* | grep -v "install.sh" | head -n 1)
-cp "$SOURCE" /usr/local/bin/jakiscanner
-
-# 2. EL FIX DEFINITIVO DE PERMISOS
-# 755 = Propietario(Leer/Escribir/Ejecutar) | Grupo y Otros(Leer/Ejecutar)
-# Esto elimina el "Errno 13 Permission Denied" para siempre.
-chmod 755 /usr/local/bin/jakiscanner
-
-# 3. Crear Alias para mayor compatibilidad
-add_alias() {
-    local config_file=$1
-    if [ -f "$config_file" ]; then
-        sed -i '/alias jakiscanner=/d' "$config_file"
-        echo "alias jakiscanner='/usr/local/bin/jakiscanner'" >> "$config_file"
-        chown $REAL_USER:$REAL_USER "$config_file"
-    fi
-}
-
-add_alias "$USER_HOME/.bashrc"
-add_alias "$USER_HOME/.zshrc"
-
-echo -e "➜ Instalando dependencias..."
+# 2. Instalación de dependencias (tqdm)
+echo -e "\n${CYAN}➜${NC} Configurando entorno y dependencias..."
 apt-get update -y > /dev/null 2>&1
 apt-get install -y python3-tqdm > /dev/null 2>&1
+# Fallback por si apt falla
+pip3 install tqdm --break-system-packages --user > /dev/null 2>&1
 
-echo -e "\n${GREEN}${BOLD}¡INSTALACIÓN COMPLETADA!${NC}"
-echo -e "Escribe ${CYAN}source ~/.zshrc${NC} o abre una nueva terminal."
-echo -e "Luego lanza tu herramienta: ${BOLD}jakiscanner${NC}"
+# 3. Localizar y preparar el archivo
+SOURCE=$(ls jakiscanner* | grep -v "install.sh" | head -n 1)
+
+# 4. Instalación Global
+echo -e "${CYAN}➜${NC} Registrando comando en el sistema..."
+cp "$SOURCE" /usr/local/bin/jakiscanner
+
+# Configuración de permisos: Propietario jaki (si existe), ejecutable por TODOS
+if id "jaki" &>/dev/null; then
+    chown jaki:jaki /usr/local/bin/jakiscanner
+else
+    chown root:root /usr/local/bin/jakiscanner
+fi
+chmod 755 /usr/local/bin/jakiscanner
+
+# Crear enlace simbólico para asegurar disponibilidad inmediata
+ln -sf /usr/local/bin/jakiscanner /usr/bin/jakiscanner
+
+# 5. Mensaje Final Limpio
+echo -e "\n${GREEN}${BOLD}¡INSTALACIÓN COMPLETADA CON ÉXITO!${NC}"
+echo -e "${CYAN}------------------------------------------${NC}"
+echo -e "Ya puedes usar la herramienta escribiendo:"
+echo -e "${BOLD}${WHITE}jakiscanner${NC}"
+echo -e "${CYAN}------------------------------------------${NC}"
+echo -e "${CYAN}Nota:${NC} Si el comando no se reconoce al instante,"
+echo -e "abre una nueva pestaña en tu terminal."
